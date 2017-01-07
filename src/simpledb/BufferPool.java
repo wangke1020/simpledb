@@ -1,6 +1,9 @@
 package simpledb;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -20,14 +23,22 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
+//    private Page[] pages;
+//    private ConcurrentHashMap<PageId, TransactionDesc> locks;
+//    private ConcurrentHashMap<TransactionId, PageId> occupiedPages;
+    private HashMap<PageId, Page> pages = new HashMap<>();
+    private int numPages;
+
+
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
      * @param numPages maximum number of pages in this buffer pool.
      */
     public BufferPool(int numPages) {
-        // some code goes here
+        this.numPages =numPages;
     }
+
 
     /**
      * Retrieve the specified page with the associated permissions.
@@ -45,9 +56,14 @@ public class BufferPool {
      * @param perm the requested permissions on the page
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
+        // TODO: support lock
         throws TransactionAbortedException, DbException {
-        // some code goes here
-        return null;
+        if(pages.containsKey(pid)) {
+            return pages.get(pid);
+        }
+        Page page = Database.getCatalog().getDbFile(pid.getTableId()).readPage(pid);
+        pages.put(pid, page);
+        return page;
     }
 
     /**
@@ -101,8 +117,8 @@ public class BufferPool {
      * be acquired.
      * 
      * Marks any pages that were dirtied by the operation as dirty by calling
-     * their markDirty bit, and updates cached versions of any pages that have 
-     * been dirtied so that future requests see up-to-date pages. 
+     * their markDirty bit, and updates cached versions of any pages that have
+     * been dirtied so that future requests see up-to-date pages.
      *
      * @param tid the transaction adding the tuple
      * @param tableId the table to add the tuple to
@@ -120,7 +136,7 @@ public class BufferPool {
      * the lock cannot be acquired.
      *
      * Marks any pages that were dirtied by the operation as dirty by calling
-     * their markDirty bit.  Does not need to update cached versions of any pages that have 
+     * their markDirty bit.  Does not need to update cached versions of any pages that have
      * been dirtied, as it is not possible that a new page was created during the deletion
      * (note difference from addTuple).
      *
