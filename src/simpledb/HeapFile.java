@@ -107,6 +107,7 @@ public class HeapFile implements DbFile {
 
     // see DbFile.java for javadocs
     public DbFileIterator iterator(TransactionId tid) {
+        final TransactionId transactionId = tid;
         return new DbFileIterator() {
             private boolean opened;
             private int pgNo = 0;
@@ -154,7 +155,7 @@ public class HeapFile implements DbFile {
 
             private void setTupleIterator(int num) throws TransactionAbortedException, DbException {
                 HeapPageId pid = new HeapPageId(getId(), num);
-                HeapPage page  = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
+                HeapPage page  = (HeapPage)Database.getBufferPool().getPage(transactionId, pid, Permissions.READ_ONLY);
                 iterator = page.iterator();
             }
         };

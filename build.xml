@@ -44,7 +44,7 @@
             <javac srcdir="@{srcdir}" destdir="@{destdir}" includeAntRuntime="no"
                     debug="${compile.debug}" source="${sourceversion}">
                 <compilerarg value="-Xlint:unchecked" />
-                <!--<compilerarg value="-Xlint:deprecation" />-->
+                <compilerarg value="-Xlint:-options" />
                 <compileoptions/>
             </javac>
         </sequential>
@@ -100,7 +100,7 @@
     </target>
 
     <target name="compile" description="Compile code">
-        <Compile srcdir="${src}/java" destdir="${build.src}">
+        <Compile srcdir="${src}/simpledb" destdir="${build.src}">
             <classpath refid="classpath.base"/>
         </Compile>
 	<copy todir="${build}" flatten="true">
@@ -113,7 +113,7 @@
     <target name="javadocs" description="Build javadoc documentation">
         <javadoc destdir="${doc}" access="private" failonerror="true" source="${sourceversion}">
             <classpath refid="classpath.base" />
-            <fileset dir="src/java" defaultexcludes="yes">
+            <fileset dir="src/simpledb" defaultexcludes="yes">
                 <include name="simpledb/**/*.java"/>
             </fileset>
         </javadoc>
