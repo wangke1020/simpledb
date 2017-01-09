@@ -1,6 +1,6 @@
 package simpledb.systemtest;
 
-import simpledb.systemtest.SystemTestUtil;
+import simpledb.struct.*;
 
 import static org.junit.Assert.*;
 
@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.NoSuchElementException;
 import java.util.Random;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import simpledb.*;

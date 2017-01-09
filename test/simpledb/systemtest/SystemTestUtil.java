@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.junit.Assert;
 
 import simpledb.*;
+import simpledb.struct.*;
 
 public class SystemTestUtil {
     public static final TupleDesc SINGLE_INT_DESCRIPTOR =

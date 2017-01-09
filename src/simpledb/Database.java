@@ -1,5 +1,7 @@
 package simpledb;
 
+import simpledb.struct.LogFile;
+
 import java.io.*;
 
 /** Database is a class that initializes several static

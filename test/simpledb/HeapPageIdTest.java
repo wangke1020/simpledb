@@ -8,6 +8,7 @@ import junit.framework.JUnit4TestAdapter;
 import org.junit.Before;
 import org.junit.Test;
 
+import simpledb.struct.HeapPageId;
 import simpledb.systemtest.SimpleDbTestBase;
 
 public class HeapPageIdTest extends SimpleDbTestBase {

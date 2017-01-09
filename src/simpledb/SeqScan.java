@@ -1,5 +1,7 @@
 package simpledb;
 
+import simpledb.struct.*;
+
 import java.util.*;
 
 /**

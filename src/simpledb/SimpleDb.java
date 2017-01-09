@@ -1,5 +1,9 @@
 package simpledb;
-import java.util.*;
+import simpledb.struct.DbFile;
+import simpledb.struct.DbFileIterator;
+import simpledb.struct.HeapFileEncoder;
+import simpledb.struct.Tuple;
+
 import java.io.*;
 
 public class SimpleDb {

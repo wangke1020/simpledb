@@ -1,5 +1,9 @@
 package simpledb;
 
+import simpledb.struct.DbFile;
+import simpledb.struct.HeapFile;
+import simpledb.struct.TupleDesc;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;

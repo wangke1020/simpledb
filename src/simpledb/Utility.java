@@ -1,5 +1,7 @@
 package simpledb;
 
+import simpledb.struct.*;
+
 import java.io.*;
 import java.util.ArrayList;
 import java.util.UUID;

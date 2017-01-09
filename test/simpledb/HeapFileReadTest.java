@@ -1,5 +1,6 @@
 package simpledb;
 
+import simpledb.struct.*;
 import simpledb.systemtest.SimpleDbTestBase;
 import simpledb.systemtest.SystemTestUtil;
 

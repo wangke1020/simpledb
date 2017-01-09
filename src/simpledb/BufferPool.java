@@ -1,9 +1,11 @@
 package simpledb;
 
+import simpledb.struct.Page;
+import simpledb.struct.PageId;
+import simpledb.struct.Tuple;
+
 import java.io.*;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from

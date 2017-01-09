@@ -4,10 +4,11 @@ import java.util.NoSuchElementException;
 
 import org.junit.Test;
 
+import simpledb.struct.TupleDesc;
 import simpledb.systemtest.SimpleDbTestBase;
 
 import static org.junit.Assert.*;
-import static simpledb.TupleDesc.*;
+import static simpledb.struct.TupleDesc.*;
 import static simpledb.Utility.*;
 
 import junit.framework.Assert;
@@ -19,7 +20,7 @@ public class TupleDescTest extends SimpleDbTestBase {
      * Unit test for TupleDesc.combine()
      */
     @Test public void combine() {
-        simpledb.TupleDesc td1, td2, td3;
+        TupleDesc td1, td2, td3;
 
         td1 = getTupleDesc(1, "td1");
         td2 = getTupleDesc(2, "td2");
