@@ -43,10 +43,12 @@ public class Filter extends Operator {
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         dbIterator.open();
+        super.open();
     }
 
     public void close() {
         dbIterator.close();
+        super.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
@@ -70,7 +72,7 @@ public class Filter extends Operator {
             if(pred.filter(t))
                 return t;
         }
-        throw new NoSuchElementException();
+        return null;
     }
 
     @Override
