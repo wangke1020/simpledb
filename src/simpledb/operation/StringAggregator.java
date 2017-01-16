@@ -1,8 +1,9 @@
 package simpledb.operation;
 
-import simpledb.struct.DbIterator;
+import simpledb.struct.*;
 import simpledb.Type;
-import simpledb.struct.Tuple;
+
+import java.util.HashMap;
 
 /**
  * Knows how to compute some aggregate over a set of StringFields.
@@ -10,6 +11,14 @@ import simpledb.struct.Tuple;
 public class StringAggregator implements Aggregator {
 
     private static final long serialVersionUID = 1L;
+
+    private int gbFieldPos;
+    private Type gbFieldType;
+    private int aggFieldPos;
+    private TupleDesc tupleDesc;
+    private Op op;
+
+    HashMap<Field, Tuple> map = new HashMap<>();
 
     /**
      * Aggregate constructor
@@ -21,7 +30,17 @@ public class StringAggregator implements Aggregator {
      */
 
     public StringAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
-        // some code goes here
+        if(!what.equals(Op.COUNT))
+            throw new IllegalArgumentException("not supported operation: " + what.toString());
+
+        gbFieldPos = gbfield;
+        gbFieldType = gbfieldtype;
+        aggFieldPos = afield;
+
+        tupleDesc = new TupleDesc(gbfield == NO_GROUPING ?
+        new Type[]{Type.INT_TYPE} : new Type[] {gbfieldtype, Type.INT_TYPE});
+        op = what;
+
     }
 
     /**
@@ -29,7 +48,35 @@ public class StringAggregator implements Aggregator {
      * @param tup the Tuple containing an aggregate field and a group-by field
      */
     public void mergeTupleIntoGroup(Tuple tup) {
-        // some code goes here
+        if(gbFieldPos == NO_GROUPING) {
+            mergeNoGroupingTuple();
+        }
+        else {
+            Field key = tup.getField(gbFieldPos);
+            Tuple aggTuple = map.get(key);
+            if(aggTuple == null) {
+                Tuple t = new Tuple(tupleDesc);
+                t.setField(0, tup.getField(gbFieldPos));
+                t.setField(1, new IntField(1));
+                map.put(key, t);
+            }else {
+                int oldCount = ((IntField)aggTuple.getField(1)).getValue();
+                aggTuple.setField(1, new IntField(oldCount+1));
+            }
+        }
+    }
+
+    private void mergeNoGroupingTuple() {
+        IntField fakeFiled = new IntField(0);
+        if(map.size() == 0) {
+            Tuple t= new Tuple(new TupleDesc(new Type[]{Type.INT_TYPE}));
+            t.setField(0, new IntField(1));
+            map.put(fakeFiled, t);
+        }else {
+            Tuple aggTuple = map.get(fakeFiled);
+            IntField aggField = (IntField) aggTuple.getField(0);
+            aggTuple.setField(0, new IntField(aggField.getValue()+1));
+        }
     }
 
     /**
@@ -41,8 +88,7 @@ public class StringAggregator implements Aggregator {
      *   aggregate specified in the constructor.
      */
     public DbIterator iterator() {
-        // some code goes here
-        throw new UnsupportedOperationException("please implement me for proj2");
+        return Aggregator.makeIteratorFromMap(map, tupleDesc);
     }
 
 }

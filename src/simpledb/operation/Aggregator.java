@@ -1,10 +1,14 @@
 package simpledb.operation;
 
-import simpledb.struct.DbIterator;
-import simpledb.struct.Tuple;
-import simpledb.struct.TupleIterator;
+import simpledb.DbException;
+import simpledb.TransactionAbortedException;
+import simpledb.Type;
+import simpledb.struct.*;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * The common interface for any class that can compute an aggregate over a
@@ -47,7 +51,7 @@ public interface Aggregator extends Serializable {
         	if (this==AVG)
         		return "avg";
         	if (this==COUNT)
-        		return "count";
+        		return "counts";
         	throw new IllegalStateException("impossible to reach here");
         }
     }
@@ -66,5 +70,51 @@ public interface Aggregator extends Serializable {
      * @see TupleIterator for a possible helper
      */
     public DbIterator iterator();
+
+
+    static DbIterator makeIteratorFromMap(HashMap<Field, Tuple> map, TupleDesc td) {
+        return new DbIterator() {
+            private Iterator<Tuple> iterator;
+            private boolean opened;
+            @Override
+            public void open() throws DbException, TransactionAbortedException {
+                iterator = map.values().iterator();
+                opened = true;
+            }
+
+            @Override
+            public boolean hasNext() throws DbException, TransactionAbortedException {
+                if(!opened)
+                    throw new IllegalStateException("not opened");
+                return iterator.hasNext();
+            }
+
+            @Override
+            public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
+                if(!opened)
+                    throw new IllegalStateException("not opened");
+                if(!hasNext())
+                    throw new NoSuchElementException("no more element");
+                return iterator.next();
+            }
+
+            @Override
+            public void rewind() throws DbException, TransactionAbortedException {
+                if(!opened)
+                    throw new IllegalStateException("not opened");
+                iterator = map.values().iterator();
+            }
+
+            @Override
+            public TupleDesc getTupleDesc() {
+                return td;
+            }
+
+            @Override
+            public void close() {
+                opened = false;
+            }
+        };
+    }
     
 }

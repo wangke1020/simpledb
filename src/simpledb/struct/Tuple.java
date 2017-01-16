@@ -99,4 +99,12 @@ public class Tuple implements Serializable {
     {
         return Arrays.asList(fields).iterator();
     }
+
+    public Tuple makeClone() {
+        Tuple t = new Tuple(tupleDesc);
+        for(int i=0;i<tupleDesc.numFields();++i)  {
+            t.setField(i, this.getField(i));
+        }
+        return t;
+    }
 }
