@@ -237,7 +237,6 @@ public class HeapPage implements Page {
         if(!isSlotUsed(slotNum))
             throw new DbException("slot is empty");
         markSlotUsed(slotNum, false);
-
     }
 
     /**

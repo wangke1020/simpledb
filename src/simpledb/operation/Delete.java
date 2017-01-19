@@ -2,6 +2,7 @@ package simpledb.operation;
 
 import simpledb.*;
 import simpledb.struct.DbIterator;
+import simpledb.struct.IntField;
 import simpledb.struct.Tuple;
 import simpledb.struct.TupleDesc;
 
@@ -12,7 +13,9 @@ import simpledb.struct.TupleDesc;
 public class Delete extends Operator {
 
     private static final long serialVersionUID = 1L;
-
+    private TransactionId tid;
+    private DbIterator iterator;
+    boolean deleted;
     /**
      * Constructor specifying the transaction that this delete belongs to as
      * well as the child to read from.
@@ -23,24 +26,30 @@ public class Delete extends Operator {
      *            The child operator from which to read tuples for deletion
      */
     public Delete(TransactionId t, DbIterator child) {
-        // some code goes here
+        tid = t;
+        iterator = child;
+        deleted = false;
     }
 
     public TupleDesc getTupleDesc() {
-        // some code goes here
-        return null;
+        return new TupleDesc(new Type[]{Type.INT_TYPE});
     }
 
     public void open() throws DbException, TransactionAbortedException {
-        // some code goes here
+        iterator.open();
+        super.open();
+        deleted = false;
     }
 
     public void close() {
-        // some code goes here
+        iterator.close();
+        super.close();
+        deleted = true;
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        // some code goes here
+        iterator.rewind();
+        deleted = false;
     }
 
     /**
@@ -53,19 +62,26 @@ public class Delete extends Operator {
      * @see BufferPool#deleteTuple
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-        // some code goes here
-        return null;
+        if(deleted) return null;
+        int count = 0;
+        while(iterator.hasNext()) {
+            Database.getBufferPool().deleteTuple(tid, iterator.next());
+            ++count;
+        }
+        deleted = true;
+        Tuple t = new Tuple(getTupleDesc());
+        t.setField(0, new IntField(count));
+        return t;
     }
 
     @Override
     public DbIterator[] getChildren() {
-        // some code goes here
-        return null;
+        return new DbIterator[]{iterator};
     }
 
     @Override
     public void setChildren(DbIterator[] children) {
-        // some code goes here
+        iterator = children[0];
     }
 
 }

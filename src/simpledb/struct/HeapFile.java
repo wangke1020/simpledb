@@ -151,8 +151,14 @@ public class HeapFile implements DbFile {
             public boolean hasNext() throws DbException, TransactionAbortedException {
                 if(!opened)
                     return false;
-
-                return pgNo < numPages() - 1 || iterator.hasNext();
+                if(iterator.hasNext()) return true;
+                for(int i=pgNo+1;i<numPages();++i) {
+                    HeapPageId pid = new HeapPageId(getId(), i);
+                    HeapPage page  = (HeapPage)Database.getBufferPool().getPage(transactionId, pid, Permissions.READ_ONLY);
+                    if(page.getNumEmptySlots() != page.numSlots)
+                        return true;
+                }
+                return false;
             }
 
             @Override

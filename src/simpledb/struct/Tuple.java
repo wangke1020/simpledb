@@ -100,11 +100,21 @@ public class Tuple implements Serializable {
         return Arrays.asList(fields).iterator();
     }
 
-    public Tuple makeClone() {
-        Tuple t = new Tuple(tupleDesc);
-        for(int i=0;i<tupleDesc.numFields();++i)  {
-            t.setField(i, this.getField(i));
+
+    @Override
+    public boolean equals(Object o) {
+        if(o == null) return false;
+        if(this == o) return true;
+        if(!(o instanceof Tuple)) return false;
+        Tuple t = (Tuple)o;
+        if(!t.getRecordId().equals(getRecordId())) return false;
+        if(!t.getTupleDesc().equals(getTupleDesc())) return false;
+
+        for(int i=0;i<fields.length;i++) {
+            if(!t.getField(i).equals(getField(i)))
+                return false;
         }
-        return t;
+        return true;
+
     }
 }
