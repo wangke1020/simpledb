@@ -2,9 +2,9 @@ package simpledb;
 
 import simpledb.struct.*;
 
-import javax.xml.crypto.Data;
-import java.io.*;
-import java.util.HashMap;
+import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -27,7 +27,7 @@ public class BufferPool {
 //    private Page[] pages;
 //    private ConcurrentHashMap<PageId, TransactionDesc> locks;
 //    private ConcurrentHashMap<TransactionId, PageId> occupiedPages;
-    private HashMap<PageId, Page> pages = new HashMap<>();
+    private LRUCache<PageId, Page> pages;
     private int numPages;
 
 
@@ -37,9 +37,37 @@ public class BufferPool {
      * @param numPages maximum number of pages in this buffer pool.
      */
     public BufferPool(int numPages) {
-        this.numPages =numPages;
+        this.numPages = numPages;
+        pages = new LRUCache<>(DEFAULT_PAGES);
     }
 
+
+    private class LRUCache<K, V> extends LinkedHashMap<K, V> {
+        private final int MAX_CACHE_SIZE;
+
+        LRUCache(int cacheSize) {
+            super((int) Math.ceil(cacheSize / 0.75) + 1, 0.75f, true);
+            MAX_CACHE_SIZE = cacheSize;
+        }
+
+        @Override
+        protected boolean removeEldestEntry(Map.Entry eldest) {
+            if (size() > MAX_CACHE_SIZE) {
+                discardPage((PageId) eldest.getKey());
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<K, V> entry : entrySet()) {
+                sb.append(String.format("%s:%s ", entry.getKey(), entry.getValue()));
+            }
+            return sb.toString();
+        }
+    }
 
     /**
      * Retrieve the specified page with the associated permissions.
@@ -167,8 +195,15 @@ public class BufferPool {
         cache.
     */
     public synchronized void discardPage(PageId pid) {
-        // some code goes here
-	// not necessary for proj1
+        HeapPage page = (HeapPage) pages.get(pid);
+        if(page.isDirty() != null) {
+            try {
+                flushPage(pid);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        pages.remove(pid);
     }
 
     /**
@@ -176,8 +211,11 @@ public class BufferPool {
      * @param pid an ID indicating the page to flush
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
-        // some code goes here
-        // not necessary for proj1
+        if(pages.containsKey(pid)) {
+            throw new IOException("page does not exist");
+        }
+        HeapFile f =  (HeapFile) Database.getCatalog().getDbFile(pid.getTableId());
+        f.writePage(pages.get(pid));
     }
 
     /** Write all pages of the specified transaction to disk.
