@@ -103,7 +103,7 @@ public abstract class Operator implements DbIterator {
      * @param card
      *            The estimated cardinality of this operator.
      * */
-    protected void setEstimatedCardinality(int card) {
+    public void setEstimatedCardinality(int card) {
         this.estimatedCardinality = card;
     }
 
