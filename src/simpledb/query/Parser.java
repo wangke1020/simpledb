@@ -1,4 +1,4 @@
-package simpledb;
+package simpledb.query;
 
 import Zql.*;
 import java.io.*;
@@ -8,7 +8,10 @@ import java.util.*;
 import jline.ArgumentCompletor;
 import jline.ConsoleReader;
 import jline.SimpleCompletor;
+import simpledb.*;
 import simpledb.operation.*;
+import simpledb.query.optimizer.LogicalPlan;
+import simpledb.query.optimizer.TableStats;
 import simpledb.struct.*;
 
 public class Parser {
@@ -289,7 +292,7 @@ public class Parser {
         if (physicalPlan != null) {
             Class<?> c;
             try {
-                c = Class.forName("simpledb.OperatorCardinality");
+                c = Class.forName("simpledb.query.optimization.OperatorCardinality");
 
                 Class<?> p = Operator.class;
                 Class<?> h = Map.class;
@@ -300,7 +303,7 @@ public class Parser {
                 System.out.println("The query plan is:");
                 m.invoke(null, (Operator) physicalPlan,
                         lp.getTableAliasToIdMapping(), TableStats.getStatsMap());
-                c = Class.forName("simpledb.QueryPlanVisualizer");
+                c = Class.forName("simpledb.query.optimization.QueryPlanVisualizer");
                 m = c.getMethod(
                         "printQueryPlanTree", DbIterator.class, System.out.getClass());
                 m.invoke(c.newInstance(), physicalPlan,System.out);

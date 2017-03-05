@@ -1,8 +1,12 @@
-package simpledb;
+package simpledb.query;
 
 import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Iterator;
+
+import simpledb.HashEquiJoin;
+import simpledb.Project;
+import simpledb.SeqScan;
 import simpledb.struct.TupleDesc.TDItem;
 import simpledb.operation.*;
 import simpledb.struct.DbIterator;

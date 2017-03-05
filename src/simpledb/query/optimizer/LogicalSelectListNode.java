@@ -1,4 +1,4 @@
-package simpledb;
+package simpledb.query.optimizer;
 
 /** A LogicalSelectListNode represents a clause in the select list in
  * a LogicalQueryPlan

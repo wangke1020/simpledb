@@ -1,6 +1,7 @@
 package simpledb.operation;
 
 import simpledb.*;
+import simpledb.query.optimizer.LogicalPlan;
 import simpledb.struct.DbIterator;
 import simpledb.struct.Tuple;
 import simpledb.struct.TupleDesc;

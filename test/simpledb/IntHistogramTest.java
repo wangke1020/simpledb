@@ -3,6 +3,7 @@ package simpledb;
 import org.junit.Test;
 import org.junit.Assert;
 import simpledb.operation.Predicate.Op;
+import simpledb.query.optimizer.IntHistogram;
 
 public class IntHistogramTest {
 

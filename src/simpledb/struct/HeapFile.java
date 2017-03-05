@@ -150,7 +150,7 @@ public class HeapFile implements DbFile {
             @Override
             public boolean hasNext() throws DbException, TransactionAbortedException {
                 if(!opened)
-                    return false;
+                    throw new DbException("iterator not opened");
                 if(iterator.hasNext()) return true;
                 for(int i=pgNo+1;i<numPages();++i) {
                     HeapPageId pid = new HeapPageId(getId(), i);

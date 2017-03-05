@@ -1,4 +1,7 @@
-package simpledb;
+package simpledb.query.optimizer;
+
+import simpledb.query.optimizer.LogicalJoinNode;
+
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Vector;

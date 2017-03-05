@@ -81,7 +81,7 @@ public class SimpleDb {
             
             try {
                 //dynamically load Parser -- if it doesn't exist, print error message
-                Class<?> c = Class.forName("simpledb.Parser");
+                Class<?> c = Class.forName("simpledb.query.optimization.Parser");
                 Class<?> s = String[].class;
                 
                 java.lang.reflect.Method m = c.getMethod("main", s);

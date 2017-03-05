@@ -1,4 +1,5 @@
-package simpledb;
+package simpledb.query.optimizer;
+
 import java.util.Vector;
 
 /** Class returned by {@link JoinOptimizer#computeCostAndCardOfSubplan} specifying the

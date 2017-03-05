@@ -1,6 +1,9 @@
-package simpledb;
+package simpledb.query.optimizer;
 
 //import java.util.HashMap;
+import simpledb.Database;
+import simpledb.HashEquiJoin;
+import simpledb.SeqScan;
 import simpledb.operation.*;
 import simpledb.struct.DbIterator;
 

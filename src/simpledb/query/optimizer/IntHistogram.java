@@ -1,4 +1,4 @@
-package simpledb;
+package simpledb.query.optimizer;
 
 import simpledb.operation.Predicate;
 
@@ -55,6 +55,14 @@ public class IntHistogram {
         ++totalCount;
         int i = calBucketIndex(v);
         ++buckets[i];
+    }
+
+    public int minVal() {
+        return min;
+    }
+
+    public int maxVal() {
+        return max;
     }
 
     /**

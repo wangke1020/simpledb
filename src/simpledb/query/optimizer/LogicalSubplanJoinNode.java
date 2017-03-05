@@ -1,4 +1,4 @@
-package simpledb;
+package simpledb.query.optimizer;
 
 import simpledb.operation.Predicate;
 import simpledb.struct.DbIterator;

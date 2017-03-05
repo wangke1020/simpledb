@@ -1,5 +1,6 @@
-package simpledb;
+package simpledb.query.optimizer;
 
+import simpledb.*;
 import simpledb.operation.Join;
 import simpledb.operation.JoinPredicate;
 import simpledb.operation.Predicate;
@@ -116,7 +117,7 @@ public class JoinOptimizer {
             // HINT: You may need to use the variable "j" if you implemented
             // a join algorithm that's more complicated than a basic nested-loops
             // join.
-            return -1.0;
+            return cost1 + card1 * cost2 + card1 * card2;
         }
     }
 
@@ -159,9 +160,20 @@ public class JoinOptimizer {
             String field2PureName, int card1, int card2, boolean t1pkey,
             boolean t2pkey, Map<String, TableStats> stats,
             Map<String, Integer> tableAliasToId) {
-        int card = 1;
         // some code goes here
-        return card <= 0 ? 1 : card;
+        if (joinOp == Predicate.Op.EQUALS) {
+            if (t1pkey) {
+                return card2;
+            } else if (t2pkey) {
+                return card1;
+            } else if (card1 >= card2) {
+                return card1;
+            } else {
+                return card2;
+            }
+        } else {
+            return (int) (0.3*card1*card2);
+        }
     }
 
     /**
@@ -222,12 +234,32 @@ public class JoinOptimizer {
             HashMap<String, Double> filterSelectivities, boolean explain)
             throws ParsingException {
 
-        // See the project writeup for some hints as to how this function
-        // should work.
+        PlanCache cache = new PlanCache();
+        Set<LogicalJoinNode> hash = new HashSet<>(joins);
+        Set<Set<LogicalJoinNode>> join = enumerateSubsets(joins,1);
+        // Literally going through each JoinNode and computing the Cost and Card of Subplan through nested loops
+        for (int i=0;i<=join.size();++i){
+            for (Set<LogicalJoinNode> set : enumerateSubsets(joins,i)) {
+                CostCard best = new CostCard();
+                best.plan = null;
+                best.cost = Double.MAX_VALUE;
+                best.card = Integer.MAX_VALUE;
+                for (LogicalJoinNode s : set) {
+                    CostCard plan = computeCostAndCardOfSubplan(stats, filterSelectivities,s,set,best.cost,cache);
+                    if (plan!=null && plan.cost < best.cost) {
+                        best = plan;
+                    }
+                }
+                cache.addPlan(set,best.cost,best.card,best.plan);
+            }
+        }
+        Vector<LogicalJoinNode> best = cache.getOrder(hash);
 
-        // some code goes here
-        //Replace the following
-        return joins;
+        // Display joins for IMDB test if explain flag is on
+        if (explain) {
+            printJoins(best,cache,stats,filterSelectivities);
+        }
+        return best;
     }
 
     // ===================== Private Methods =================================

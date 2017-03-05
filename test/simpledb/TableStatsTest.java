@@ -8,6 +8,7 @@ import org.junit.Test;
 import org.junit.Assert;
 
 import simpledb.operation.Predicate;
+import simpledb.query.optimizer.TableStats;
 import simpledb.struct.Field;
 import simpledb.struct.HeapFile;
 import simpledb.struct.IntField;

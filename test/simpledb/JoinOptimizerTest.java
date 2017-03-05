@@ -12,6 +12,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import simpledb.operation.Predicate;
+import simpledb.query.optimizer.JoinOptimizer;
+import simpledb.query.optimizer.LogicalJoinNode;
+import simpledb.query.Parser;
+import simpledb.query.optimizer.TableStats;
 import simpledb.struct.HeapFile;
 import simpledb.struct.HeapFileEncoder;
 import simpledb.systemtest.SimpleDbTestBase;

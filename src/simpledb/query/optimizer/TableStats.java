@@ -1,11 +1,10 @@
-package simpledb;
+package simpledb.query.optimizer;
 
+import simpledb.*;
 import simpledb.operation.Predicate;
-import simpledb.struct.Field;
+import simpledb.struct.*;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -34,13 +33,7 @@ public class TableStats {
             java.lang.reflect.Field statsMapF = TableStats.class.getDeclaredField("statsMap");
             statsMapF.setAccessible(true);
             statsMapF.set(null, s);
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
-        } catch (SecurityException e) {
-            e.printStackTrace();
-        } catch (IllegalArgumentException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
+        } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
             e.printStackTrace();
         }
 
@@ -69,6 +62,40 @@ public class TableStats {
      */
     static final int NUM_HIST_BINS = 100;
 
+    private static Object[] histograms;
+    private int scanCost;
+    private int tupleNum = 0;
+    private TupleDesc td;
+
+    class IntColumnValues {
+        int max;
+        int min;
+        ArrayList<Integer> values = new ArrayList<>();
+
+        IntColumnValues(int initValue) {
+            max = initValue;
+            min = initValue;
+//            System.out.println("init: max=" + max + ",min=" + min);
+        }
+
+        void update(int v) {
+            values.add(v);
+            if(v > max) max = v;
+            if(v < min) min = v;
+//            System.out.println("v=" + v + ",max=" + max + ",min=" + min);
+        }
+        int maxVal() {
+            return max;
+        }
+        int minVal() {
+            return min;
+        }
+
+        ArrayList<Integer> getValues() {
+            return values;
+        }
+    }
+
     /**
      * Create a new TableStats object, that keeps track of statistics on each
      * column of a table
@@ -80,14 +107,54 @@ public class TableStats {
      *            sequential-scan IO and disk seeks.
      */
     public TableStats(int tableid, int ioCostPerPage) {
-        // For this function, you'll have to get the
-        // DbFile for the table in question,
-        // then scan through its tuples and calculate
-        // the values that you need.
-        // You should try to do this reasonably efficiently, but you don't
-        // necessarily have to (for example) do everything
-        // in a single scan of the table.
-        // some code goes here
+
+        DbFile dbFile = Database.getCatalog().getDbFile(tableid);
+        HeapFile heapFile = (HeapFile) dbFile;
+        int pageNum = heapFile.numPages();
+        this.scanCost = ioCostPerPage * pageNum;
+
+        this.td = heapFile.getTupleDesc();
+        histograms = new Object[td.numFields()];
+        for(int i=0;i<td.numFields(); ++i) {
+            if(td.getFieldType(i) == Type.STRING_TYPE) {
+                histograms[i] = new StringHistogram(NUM_HIST_BINS);
+            }
+        }
+
+        Map<Integer, IntColumnValues> map = new HashMap<>();
+        DbFileIterator iter = heapFile.iterator(new TransactionId());
+        try {
+            iter.open();
+            while (iter.hasNext()) {
+                ++tupleNum;
+                Tuple t = iter.next();
+                for(int i =0;i<td.numFields();++i) {
+                    Object histogramObj = histograms[i];
+                    Field field = t.getField(i);
+                    if(td.getFieldType(i) == Type.INT_TYPE) {
+                        int value = ((IntField) t.getField(i)).getValue();
+                        if(map.get(i) == null) {
+                            map.put(i, new IntColumnValues(value));
+                        }else {
+                            map.get(i).update(value);
+                        }
+                    }
+                    else
+                        ((StringHistogram)histogramObj).addValue(((StringField) field).getValue());
+                }
+            }
+        }catch (TransactionAbortedException | DbException e) {
+            e.printStackTrace();
+        }
+
+        for (Integer index : map.keySet()) {
+            IntColumnValues intColValues = map.get(index);
+            int range = intColValues.maxVal() - intColValues.minVal() + 1;
+            IntHistogram intHistogram = new IntHistogram((int)Math.sqrt((double)range),
+                    intColValues.minVal(), intColValues.maxVal());
+            histograms[index] = intHistogram;
+            intColValues.getValues().forEach(intHistogram::addValue);
+        }
     }
 
     /**
@@ -103,8 +170,7 @@ public class TableStats {
      * @return The estimated cost of scanning the table.
      */
     public double estimateScanCost() {
-        // some code goes here
-        return 0;
+        return scanCost;
     }
 
     /**
@@ -117,8 +183,8 @@ public class TableStats {
      *         selectivityFactor
      */
     public int estimateTableCardinality(double selectivityFactor) {
-        // some code goes here
-        return 0;
+        return (int)(tupleNum * selectivityFactor);
+
     }
 
     /**
@@ -132,8 +198,29 @@ public class TableStats {
      * expected selectivity. You may estimate this value from the histograms.
      * */
     public double avgSelectivity(int field, Predicate.Op op) {
-        // some code goes here
-        return 1.0;
+        Type type = td.getFieldType(field);
+        double sum = 0;
+        int min = 0;
+        int max = 0;
+        if(type == Type.INT_TYPE) {
+            IntHistogram histogram = (IntHistogram) histograms[field];
+            min = histogram.minVal();
+            max = histogram.maxVal();
+
+            for(int i=min;i<=sum;++i) {
+                sum += estimateSelectivity(field, op, new IntField(i));
+            }
+
+        }else {
+            StringHistogram histogram = (StringHistogram) histograms[field];
+            min = histogram.minVal();
+            max = histogram.maxVal();
+            for(int i=min;i<=sum;++i) {
+                sum += estimateSelectivity(field, op, new IntField(i));
+            }
+        }
+
+        return sum / (max - min + 1);
     }
 
     /**
@@ -150,16 +237,21 @@ public class TableStats {
      *         predicate
      */
     public double estimateSelectivity(int field, Predicate.Op op, Field constant) {
-        // some code goes here
-        return 1.0;
+        Type type = td.getFieldType(field);
+        if(type == Type.INT_TYPE) {
+            IntHistogram histogram = (IntHistogram) histograms[field];
+            return histogram.estimateSelectivity(op, ((IntField)constant).getValue());
+        }else {
+            StringHistogram histogram = (StringHistogram) histograms[field];
+            return histogram.estimateSelectivity(op, ((StringField)constant).getValue());
+        }
     }
 
     /**
      * return the total number of tuples in this table
      * */
     public int totalTuples() {
-        // some code goes here
-        return 0;
+        return tupleNum;
     }
 
 }

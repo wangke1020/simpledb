@@ -1,4 +1,5 @@
-package simpledb;
+package simpledb.query.optimizer;
+import simpledb.*;
 import simpledb.operation.*;
 import simpledb.struct.*;
 
