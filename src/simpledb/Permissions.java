@@ -12,6 +12,9 @@ public class Permissions {
     this.permLevel = permLevel;
   }
 
+  public int getPermLevel() {
+    return permLevel;
+  }
   public String toString() {
     if (permLevel == 0)
       return "READ_ONLY";

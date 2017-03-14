@@ -3,8 +3,10 @@ package simpledb;
 import simpledb.struct.*;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -24,11 +26,9 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
-//    private Page[] pages;
-//    private ConcurrentHashMap<PageId, TransactionDesc> locks;
-//    private ConcurrentHashMap<TransactionId, PageId> occupiedPages;
     private LRUCache<PageId, Page> pages;
     private int numPages;
+    private TransanctionLocks<PageId> transanctionLocks = new TransanctionLocks<>();
 
 
     /**
@@ -85,8 +85,9 @@ public class BufferPool {
      * @param perm the requested permissions on the page
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
-        // TODO: support lock
         throws TransactionAbortedException, DbException {
+        transanctionLocks.acquireLock(tid, pid, perm);
+
         if(pages.containsKey(pid)) {
             return pages.get(pid);
         }
@@ -105,8 +106,7 @@ public class BufferPool {
      * @param pid the ID of the page to unlock
      */
     public  void releasePage(TransactionId tid, PageId pid) {
-        // some code goes here
-        // not necessary for proj1
+        transanctionLocks.releaseLock(tid, pid);
     }
 
     /**
@@ -121,9 +121,7 @@ public class BufferPool {
 
     /** Return true if the specified transaction has a lock on the specified page */
     public boolean holdsLock(TransactionId tid, PageId p) {
-        // some code goes here
-        // not necessary for proj1
-        return false;
+        return transanctionLocks.holdsLock(tid, p);
     }
 
     /**
