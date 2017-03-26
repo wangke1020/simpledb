@@ -1,6 +1,7 @@
 package simpledb;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -56,10 +57,14 @@ class LockUnit<T>{
 
 class LockBuckets<T> {
     ConcurrentHashMap<T, HashSet<LockUnit<T>>> buckets = new ConcurrentHashMap<>();
-
+    ConcurrentHashMap<TransactionId, HashSet<T>> holds = new ConcurrentHashMap<>();
     public void addToBucket(TransactionId tid, T obj, LockType type) {
         if(!buckets.containsKey(obj))
             buckets.put(obj, new HashSet<>());
+        if(!holds.containsKey(tid)) {
+            holds.put(tid, new HashSet<T>());
+        }
+
         HashSet<LockUnit<T>> set = buckets.get(obj);
         LockUnit sharelockUnit = new LockUnit<>(tid, obj, LockType.ShareLock);
 
@@ -67,6 +72,7 @@ class LockBuckets<T> {
         if(set.contains(sharelockUnit) && type.equals(LockType.ExclusiveLock))
             set.remove(sharelockUnit);
         set.add(new LockUnit<>(tid, obj,type));
+        holds.get(tid).add(obj);
     }
 
     public boolean isExclusiveLocked(T obj) {
@@ -98,9 +104,15 @@ class LockBuckets<T> {
     public void releaseLock(TransactionId tid, T obj, LockType type) {
         HashSet<LockUnit<T>> set = buckets.get(obj);
         set.remove(new LockUnit<>(tid, obj, type));
+
+        HashSet<T> tsets = holds.get(tid);
+        tsets.remove(obj);
+        if(tsets.size() == 0)
+            holds.remove(tid);
     }
-
-
+    public HashSet<T> getHolds(TransactionId tid) {
+        return holds.get(tid);
+    }
 }
 
 class TransanctionLocks<T> {
@@ -147,10 +159,23 @@ class TransanctionLocks<T> {
         LockType lockType = buckets.holdLock(tid, obj);
         if(lockType != null)
             buckets.releaseLock(tid, obj, lockType);
+
     }
 
     public boolean holdsLock(TransactionId tid, T obj){
-        return buckets.holdLock(tid, obj) != null;
+        return getHolds(tid).contains(obj);
+    }
+    public HashSet<T> getHolds(TransactionId tid) {
+        return buckets.getHolds(tid);
     }
 
+    public void releaseAllLocks(TransactionId tid) {
+        HashSet<T> holds = getHolds(tid);
+        HashSet<T> copys = new HashSet<T>();
+        copys.addAll(holds);
+
+        for(T t : copys) {
+            releaseLock(tid, t);
+        }
+    }
 }

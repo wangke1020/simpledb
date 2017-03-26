@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -26,7 +25,7 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
-    private LRUCache<PageId, Page> pages;
+    private final LRUCache<PageId, Page> pages;
     private int numPages;
     private TransanctionLocks<PageId> transanctionLocks = new TransanctionLocks<>();
 
@@ -38,7 +37,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         this.numPages = numPages;
-        pages = new LRUCache<>(DEFAULT_PAGES);
+        pages = new LRUCache<>(numPages);
     }
 
 
@@ -93,6 +92,7 @@ public class BufferPool {
         }
         Page page = Database.getCatalog().getDbFile(pid.getTableId()).readPage(pid);
         pages.put(pid, page);
+
         return page;
     }
 
@@ -117,6 +117,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for proj1
+        transactionComplete(tid, true);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -135,6 +136,18 @@ public class BufferPool {
         throws IOException {
         // some code goes here
         // not necessary for proj1
+        if (commit) {
+            flushPages(tid);
+        } else {
+            HashSet<PageId> pageIds = transanctionLocks.getHolds(tid);
+            for (PageId pid : pageIds) {
+                pages.remove(pid);
+                Page page = Database.getCatalog().getDbFile(pid.getTableId()).readPage(pid);
+                pages.put(pid, page);
+
+            }
+        }
+        transanctionLocks.releaseAllLocks(tid);
     }
 
     /**
@@ -184,7 +197,11 @@ public class BufferPool {
     public synchronized void flushAllPages() throws IOException {
         // some code goes here
         // not necessary for proj1
-
+        HashSet<PageId> pids = new HashSet<>();
+        pids.addAll(pages.keySet());
+        for(PageId pid : pids) {
+            flushPage(pid);
+        }
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -209,7 +226,7 @@ public class BufferPool {
      * @param pid an ID indicating the page to flush
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
-        if(pages.containsKey(pid)) {
+        if(!pages.containsKey(pid)) {
             throw new IOException("page does not exist");
         }
         HeapFile f =  (HeapFile) Database.getCatalog().getDbFile(pid.getTableId());
@@ -221,6 +238,10 @@ public class BufferPool {
     public synchronized  void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for proj1
+        HashSet<PageId> pageIds = transanctionLocks.getHolds(tid);
+        for(PageId pid : pageIds) {
+            flushPage(pid);
+        }
     }
 
     /**
@@ -230,6 +251,22 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for proj1
+        boolean pageEvicted = false;
+        for (PageId pid : pages.keySet())
+        {
+            try
+            {
+                flushPage(pid);
+                pages.remove(pid);
+                pageEvicted = true;
+                break;
+            }
+            catch (IOException e)
+            {
+                throw new DbException("Error trying to flush page during eviction.");
+            }
+        }
+        if (!pageEvicted)
+            throw new DbException("no pages could be evicted");
     }
-
 }
