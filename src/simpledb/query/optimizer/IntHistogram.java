@@ -2,7 +2,6 @@ package simpledb.query.optimizer;
 
 import simpledb.operation.Predicate;
 
-import static simpledb.operation.Predicate.Op.EQUALS;
 
 /** A class to represent a fixed-width histogram over a single integer-based field.
  */

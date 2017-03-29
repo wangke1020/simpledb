@@ -27,7 +27,7 @@ public class BufferPool {
 
     private final LRUCache<PageId, Page> pages;
     private int numPages;
-    private TransanctionLocks<PageId> transanctionLocks = new TransanctionLocks<>();
+    private LockTable<PageId> lockTable = new LockTable<>();
 
 
     /**
@@ -85,7 +85,7 @@ public class BufferPool {
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        transanctionLocks.acquireLock(tid, pid, perm);
+        lockTable.acquireLock(tid, pid, perm);
 
         if(pages.containsKey(pid)) {
             return pages.get(pid);
@@ -106,7 +106,7 @@ public class BufferPool {
      * @param pid the ID of the page to unlock
      */
     public  void releasePage(TransactionId tid, PageId pid) {
-        transanctionLocks.releaseLock(tid, pid);
+        lockTable.releaseLock(tid, pid);
     }
 
     /**
@@ -122,7 +122,7 @@ public class BufferPool {
 
     /** Return true if the specified transaction has a lock on the specified page */
     public boolean holdsLock(TransactionId tid, PageId p) {
-        return transanctionLocks.holdsLock(tid, p);
+        return lockTable.holdsLock(tid, p);
     }
 
     /**
@@ -139,7 +139,7 @@ public class BufferPool {
         if (commit) {
             flushPages(tid);
         } else {
-            HashSet<PageId> pageIds = transanctionLocks.getHolds(tid);
+            HashSet<PageId> pageIds = lockTable.getHolds(tid);
             for (PageId pid : pageIds) {
                 pages.remove(pid);
                 Page page = Database.getCatalog().getDbFile(pid.getTableId()).readPage(pid);
@@ -147,7 +147,7 @@ public class BufferPool {
 
             }
         }
-        transanctionLocks.releaseAllLocks(tid);
+        lockTable.releaseAllLocks(tid);
     }
 
     /**
@@ -238,7 +238,7 @@ public class BufferPool {
     public synchronized  void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for proj1
-        HashSet<PageId> pageIds = transanctionLocks.getHolds(tid);
+        HashSet<PageId> pageIds = lockTable.getHolds(tid);
         for(PageId pid : pageIds) {
             flushPage(pid);
         }
