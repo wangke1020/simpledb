@@ -53,6 +53,7 @@ class LockTable<T> {
 
     private ConcurrentHashMap<T, HashSet<LockUnit>> bucket = new ConcurrentHashMap<>();
     private ConcurrentHashMap<TransactionId, HashSet<T>> holds = new ConcurrentHashMap<>();
+    private WaitForGraph waitForGraph = new WaitForGraph();
 
     private void addToBucket(TransactionId tid, T obj, LockType type) {
         if(!bucket.containsKey(obj))
