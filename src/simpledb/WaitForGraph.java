@@ -2,26 +2,46 @@ package simpledb;
 
 import simpledb.utils.Digraph;
 
+
+enum LockItemType {
+    RESOURCE,
+    TRANSACTION
+}
+class LockItem {
+    long id;
+    LockItemType type;
+
+    LockItem(long id, LockItemType type) {
+        this.id = id;
+        this.type = type;
+    }
+
+    long getId() {
+        return id;
+    }
+
+    LockItemType getType() {
+        return type;
+    }
+
+    @Override
+    public int hashCode() {
+        return (int)(id * 31 +  type.hashCode());
+    }
+
+    public boolean equals(Object o) {
+        if(o == null) return false;
+        if(this == o) return true;
+        if(getClass() != o.getClass()) return false;
+        LockItem item = (LockItem)o;
+        return item.id == this.id &&
+                item.type.equals(this.type);
+    }
+}
+
 public class WaitForGraph {
 
-    enum LockItemType {
-        RESOURCE,
-        TRANSACTION
-    }
-    class LockItem {
-        long id;
-        LockItemType type;
 
-        LockItem(long id, LockItemType type) {
-            this.id = id;
-            this.type = type;
-        }
-
-        @Override
-        public int hashCode() {
-            return (int)(id * 31 +  type.hashCode());
-        }
-    }
 
     private Digraph<LockItem> digraph;
 

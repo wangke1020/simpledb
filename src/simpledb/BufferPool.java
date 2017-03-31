@@ -3,6 +3,7 @@ package simpledb;
 import simpledb.struct.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -27,7 +28,7 @@ public class BufferPool {
 
     private final LRUCache<PageId, Page> pages;
     private int numPages;
-    private LockTable<PageId> lockTable = new LockTable<>();
+    private LockTable lockTable = new LockTable();
 
 
     /**
@@ -37,7 +38,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         this.numPages = numPages;
-        pages = new LRUCache<>(numPages);
+        pages = new LRUCache<>(this.numPages);
     }
 
 
@@ -167,7 +168,10 @@ public class BufferPool {
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
         HeapFile f =  (HeapFile) Database.getCatalog().getDbFile(tableId);
-        f.insertTuple(tid, t);
+        ArrayList<Page> modifiedPages =  f.insertTuple(tid, t);
+        for(Page p : modifiedPages) {
+            pages.put(p.getId(), p);
+        }
     }
 
     /**

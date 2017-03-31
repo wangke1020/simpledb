@@ -1,5 +1,7 @@
 package simpledb;
 
+import simpledb.struct.PageId;
+
 import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -7,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Created by wangke on 17-3-15.
  */
 
-class LockTable<T> {
+class LockTable {
 
     enum LockType {
         ShareLock,
@@ -18,7 +20,7 @@ class LockTable<T> {
         }
     }
 
-    class LockUnit<T> {
+    class LockUnit {
 
         LockUnit(TransactionId tid, LockType lockType) {
             this.tid = tid;
@@ -51,29 +53,29 @@ class LockTable<T> {
 
     }
 
-    private ConcurrentHashMap<T, HashSet<LockUnit>> bucket = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<TransactionId, HashSet<T>> holds = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<PageId, HashSet<LockUnit>> bucket = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<TransactionId, HashSet<PageId>> holds = new ConcurrentHashMap<>();
     private WaitForGraph waitForGraph = new WaitForGraph();
 
-    private void addToBucket(TransactionId tid, T obj, LockType type) {
-        if(!bucket.containsKey(obj))
-            bucket.put(obj, new HashSet<>());
+    private void addToBucket(TransactionId tid, PageId pid, LockType type) {
+        if(!bucket.containsKey(pid))
+            bucket.put(pid, new HashSet<>());
         if(!holds.containsKey(tid)) {
             holds.put(tid, new HashSet<>());
         }
 
-        HashSet<LockUnit> set = bucket.get(obj);
+        HashSet<LockUnit> set = bucket.get(pid);
         LockUnit SLockUnit = new LockUnit(tid, LockType.ShareLock);
 
         // upgrade shared lock to X lock
         if(set.contains(SLockUnit) && type.equals(LockType.ExclusiveLock))
             set.remove(SLockUnit);
         set.add(new LockUnit(tid,type));
-        holds.get(tid).add(obj);
+        holds.get(tid).add(pid);
     }
 
-    private boolean isExclusiveLocked(T obj) {
-        HashSet<LockUnit> set = bucket.get(obj);
+    private boolean isExclusiveLocked(PageId pid) {
+        HashSet<LockUnit> set = bucket.get(pid);
         if(set == null) return false;
 
         for(LockUnit entity : set) {
@@ -83,13 +85,13 @@ class LockTable<T> {
         return false;
     }
 
-    private boolean locked(T obj) {
-        HashSet<LockUnit> set = bucket.get(obj);
+    private boolean locked(PageId pid) {
+        HashSet<LockUnit> set = bucket.get(pid);
         return set != null && (!set.isEmpty());
     }
 
-    private LockType holdLock(TransactionId tid, T obj) {
-        HashSet<LockUnit> set = bucket.get(obj);
+    private LockType holdLock(TransactionId tid, PageId pid) {
+        HashSet<LockUnit> set = bucket.get(pid);
         if(set == null || set.isEmpty()) return null;
         if(set.contains(new LockUnit(tid,LockType.ExclusiveLock)))
             return LockType.ExclusiveLock;
@@ -98,29 +100,46 @@ class LockTable<T> {
         return null;
     }
 
-    private void releaseLock(TransactionId tid, T obj, LockType type) {
-        HashSet<LockUnit> set = bucket.get(obj);
+    private TransactionId getOwner(PageId pid) {
+        HashSet<LockUnit> set = bucket.get(pid);
+        return set.iterator().next().getTid();
+    }
+
+    private void releaseLock(TransactionId tid, PageId pid, LockType type) {
+        HashSet<LockUnit> set = bucket.get(pid);
         set.remove(new LockUnit(tid, type));
 
-        HashSet<T> tsets = holds.get(tid);
-        tsets.remove(obj);
-        if(tsets.size() == 0)
+        HashSet<PageId> pageIds = holds.get(tid);
+        pageIds.remove(pid);
+        if(pageIds.size() == 0)
             holds.remove(tid);
     }
 
-    public HashSet<T> getHolds(TransactionId tid) {
+    public HashSet<PageId> getHolds(TransactionId tid) {
         return holds.get(tid);
     }
 
-    public void acquireLock(TransactionId tid, T obj, Permissions perms) throws TransactionAbortedException {
+    public void acquireLock(TransactionId tid, PageId pid, Permissions perms) throws TransactionAbortedException {
 
         while(true) {
-            boolean isExclusiveLocked = isExclusiveLocked(obj);
-            LockType holdLock = holdLock(tid, obj);
+            boolean isExclusiveLocked = isExclusiveLocked(pid);
+            LockType holdLock = holdLock(tid, pid);
             if (isExclusiveLocked) {
                 if (holdLock != null && holdLock.equals(LockType.ExclusiveLock))
                     return;
                 else {
+                    TransactionId toTid = getOwner(pid);
+
+                    LockItem from = new LockItem(tid.getId(), LockItemType.TRANSACTION);
+                    LockItem to = new LockItem(toTid.getId(), LockItemType.TRANSACTION);
+                    waitForGraph.addEdge(from, to);
+                    if(waitForGraph.haveCircle()) {
+                        waitForGraph.removeEdge(from, to);
+                        throw new TransactionAbortedException();
+                    }else {
+                        waitForGraph.removeEdge(from, to);
+                    }
+
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
@@ -131,8 +150,21 @@ class LockTable<T> {
             }
 
             LockType lockType = LockType.fromPerms(perms);
-            if (locked(obj)) {
+            if (locked(pid)) {
                 if(holdLock == null && lockType.equals(LockType.ExclusiveLock)) {
+
+                    TransactionId toTid = getOwner(pid);
+
+                    LockItem from = new LockItem(tid.getId(), LockItemType.TRANSACTION);
+                    LockItem to = new LockItem(toTid.getId(), LockItemType.TRANSACTION);
+                    waitForGraph.addEdge(from, to);
+                    if(waitForGraph.haveCircle()) {
+                        waitForGraph.removeEdge(from, to);
+                        throw new TransactionAbortedException();
+                    }else {
+                        waitForGraph.removeEdge(from, to);
+                    }
+
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
@@ -142,29 +174,35 @@ class LockTable<T> {
                 }
 
             }
-            addToBucket(tid, obj, lockType);
+            addToBucket(tid, pid, lockType);
+            LockItem from = new LockItem(pid.hashCode(), LockItemType.RESOURCE);
+            LockItem to = new LockItem(tid.getId(), LockItemType.TRANSACTION);
+            waitForGraph.addEdge(from, to);
             break;
         }
     }
 
-    public void releaseLock(TransactionId tid, T obj) {
-        LockType lockType = holdLock(tid, obj);
-        if(lockType != null)
-            releaseLock(tid, obj, lockType);
-
+    public void releaseLock(TransactionId tid, PageId pid) {
+        LockType lockType = holdLock(tid, pid);
+        if(lockType != null) {
+            releaseLock(tid, pid, lockType);
+            LockItem from = new LockItem(pid.hashCode(), LockItemType.RESOURCE);
+            LockItem to = new LockItem(tid.getId(), LockItemType.TRANSACTION);
+            waitForGraph.removeEdge(from, to);
+        }
     }
 
-    public boolean holdsLock(TransactionId tid, T obj){
-        return getHolds(tid).contains(obj);
+    public boolean holdsLock(TransactionId tid, PageId pid){
+        return getHolds(tid).contains(pid);
     }
 
     public void releaseAllLocks(TransactionId tid) {
-        HashSet<T> holds = getHolds(tid);
-        HashSet<T> copys = new HashSet<>();
+        HashSet<PageId> holds = getHolds(tid);
+        HashSet<PageId> copys = new HashSet<>();
         copys.addAll(holds);
 
-        for(T t : copys) {
-            releaseLock(tid, t);
+        for(PageId pid : copys) {
+            releaseLock(tid, pid);
         }
     }
 }
