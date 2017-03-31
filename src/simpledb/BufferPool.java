@@ -92,6 +92,8 @@ public class BufferPool {
             return pages.get(pid);
         }
         Page page = Database.getCatalog().getDbFile(pid.getTableId()).readPage(pid);
+        if(shouldEvictPage())
+            evictPage();
         pages.put(pid, page);
 
         return page;
@@ -169,8 +171,14 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         HeapFile f =  (HeapFile) Database.getCatalog().getDbFile(tableId);
         ArrayList<Page> modifiedPages =  f.insertTuple(tid, t);
+
         for(Page p : modifiedPages) {
-            pages.put(p.getId(), p);
+            if(!pages.containsKey(p.getId())) {
+                if(shouldEvictPage())
+                    evictPage();
+
+                pages.put(p.getId(), p);
+            }
         }
     }
 
@@ -214,14 +222,6 @@ public class BufferPool {
         cache.
     */
     public synchronized void discardPage(PageId pid) {
-        HeapPage page = (HeapPage) pages.get(pid);
-        if(page.isDirty() != null) {
-            try {
-                flushPage(pid);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
         pages.remove(pid);
     }
 
@@ -229,9 +229,10 @@ public class BufferPool {
      * Flushes a certain page to disk
      * @param pid an ID indicating the page to flush
      */
-    private synchronized  void flushPage(PageId pid) throws IOException {
+    private synchronized void flushPage(PageId pid) throws IOException {
         if(!pages.containsKey(pid)) {
-            throw new IOException("page does not exist");
+            // page is not dirty and be evicted.
+            return;
         }
         HeapFile f =  (HeapFile) Database.getCatalog().getDbFile(pid.getTableId());
         f.writePage(pages.get(pid));
@@ -245,32 +246,51 @@ public class BufferPool {
         HashSet<PageId> pageIds = lockTable.getHolds(tid);
         for(PageId pid : pageIds) {
             flushPage(pid);
+            Page page = pages.get(pid);
+            if(page != null)
+                page.markDirty(false, tid);
         }
+    }
+
+    private synchronized boolean shouldEvictPage() {
+        return pages.size() == numPages && haveDirtyPage();
+    }
+
+    private synchronized boolean haveDirtyPage() {
+
+        ArrayList<PageId> pids = new ArrayList<>();
+        pids.addAll(pages.keySet());
+        for (PageId pid : pids) {
+            HeapPage page = (HeapPage) pages.get(pid);
+            if (page.isDirty() != null)
+                return true;
+        }
+        return false;
     }
 
     /**
      * Discards a page from the buffer pool.
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
-    private synchronized  void evictPage() throws DbException {
+    private synchronized void evictPage() throws DbException {
         // some code goes here
         // not necessary for proj1
-        boolean pageEvicted = false;
+        PageId removedPid = null;
         for (PageId pid : pages.keySet())
         {
-            try
-            {
-                flushPage(pid);
-                pages.remove(pid);
-                pageEvicted = true;
+            HeapPage page = (HeapPage)pages.get(pid);
+            if(page.isDirty() != null)
+                continue;
+            else {
+                removedPid = pid;
                 break;
             }
-            catch (IOException e)
-            {
-                throw new DbException("Error trying to flush page during eviction.");
-            }
         }
-        if (!pageEvicted)
-            throw new DbException("no pages could be evicted");
+
+        if(removedPid != null) {
+            pages.remove(removedPid);
+        }else {
+            throw new DbException("no page can be evicted");
+        }
     }
 }
