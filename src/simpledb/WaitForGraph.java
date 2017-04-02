@@ -40,9 +40,6 @@ class LockItem {
 }
 
 public class WaitForGraph {
-
-
-
     private Digraph<LockItem> digraph;
 
     public WaitForGraph() {
@@ -51,6 +48,21 @@ public class WaitForGraph {
 
     public void addEdge(LockItem from, LockItem to) {
         digraph.addEdge(from ,to);
+    }
+
+    public boolean haveEdge(LockItem from, LockItem to) {
+        return digraph.haveEdge(from, to);
+    }
+
+    public void tryAddEdge(LockItem from, LockItem to) throws TransactionAbortedException {
+        if(haveEdge(from, to))
+            return;
+
+        addEdge(from, to);
+        if(haveCircle()) {
+            removeEdge(from, to);
+            throw new TransactionAbortedException();
+        }
     }
 
     public void removeEdge(LockItem from, LockItem to) {

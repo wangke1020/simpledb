@@ -86,6 +86,7 @@ public class BufferPool {
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
+
         lockTable.acquireLock(tid, pid, perm);
 
         if(pages.containsKey(pid)) {
@@ -142,10 +143,12 @@ public class BufferPool {
         if (commit) {
             flushPages(tid);
         } else {
+
             HashSet<PageId> pageIds = lockTable.getHolds(tid);
             for (PageId pid : pageIds) {
                 pages.remove(pid);
                 Page page = Database.getCatalog().getDbFile(pid.getTableId()).readPage(pid);
+                ((HeapFile)Database.getCatalog().getDbFile(pid.getTableId())).resetNumPages();
                 pages.put(pid, page);
 
             }
@@ -167,20 +170,32 @@ public class BufferPool {
      * @param tableId the table to add the tuple to
      * @param t the tuple to add
      */
-    public void insertTuple(TransactionId tid, int tableId, Tuple t)
+    public Page insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
-        HeapFile f =  (HeapFile) Database.getCatalog().getDbFile(tableId);
-        ArrayList<Page> modifiedPages =  f.insertTuple(tid, t);
-
-        for(Page p : modifiedPages) {
-            if(!pages.containsKey(p.getId())) {
-                if(shouldEvictPage())
-                    evictPage();
-
-                pages.put(p.getId(), p);
+        int pageNo = 0;
+        BufferPool bufferPool = Database.getBufferPool();
+        for(;pageNo<pages.size();++pageNo) {
+            HeapPage page = (HeapPage) bufferPool.getPage(
+                    tid, new HeapPageId(tableId, pageNo), Permissions.READ_WRITE);
+            if(page.getNumEmptySlots() > 0) {
+                page.insertTuple(t);
+                page.markDirty(true, tid);
+                return page;
             }
         }
+
+        HeapPage page = new HeapPage(new HeapPageId(tableId, pageNo), new byte[BufferPool.PAGE_SIZE]);
+        ((HeapFile)Database.getCatalog().getDbFile(tableId)).incrNumPages();
+        page.insertTuple(t);
+        page.markDirty(true, tid);
+
+        if(shouldEvictPage())
+           evictPage();
+
+        pages.put(page.getId(), page);
+        return page;
     }
+
 
     /**
      * Remove the specified tuple from the buffer pool.
@@ -244,6 +259,10 @@ public class BufferPool {
         // some code goes here
         // not necessary for proj1
         HashSet<PageId> pageIds = lockTable.getHolds(tid);
+        if(pageIds == null) {
+            // no read and write operation
+            return;
+        }
         for(PageId pid : pageIds) {
             flushPage(pid);
             Page page = pages.get(pid);

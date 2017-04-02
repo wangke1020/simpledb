@@ -61,7 +61,7 @@ public class Digraph<Item> {
         return reverse().haveTo(to);
     }
 
-    private boolean haveEdge(Item from, Item to) {
+    public boolean haveEdge(Item from, Item to) {
         return haveTo(from) && haveVetex(to) &&
                 adj.get(from).contains(to);
     }

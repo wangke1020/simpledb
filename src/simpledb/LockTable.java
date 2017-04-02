@@ -121,6 +121,9 @@ class LockTable {
 
     public void acquireLock(TransactionId tid, PageId pid, Permissions perms) throws TransactionAbortedException {
 
+        LockItem lockRes = new LockItem(pid.hashCode(), LockItemType.RESOURCE);
+        LockItem lockRequster = new LockItem(tid.getId(), LockItemType.TRANSACTION);
+
         while(true) {
             boolean isExclusiveLocked = isExclusiveLocked(pid);
             LockType holdLock = holdLock(tid, pid);
@@ -128,18 +131,8 @@ class LockTable {
                 if (holdLock != null && holdLock.equals(LockType.ExclusiveLock))
                     return;
                 else {
-                    TransactionId toTid = getOwner(pid);
 
-                    LockItem from = new LockItem(tid.getId(), LockItemType.TRANSACTION);
-                    LockItem to = new LockItem(toTid.getId(), LockItemType.TRANSACTION);
-                    waitForGraph.addEdge(from, to);
-                    if(waitForGraph.haveCircle()) {
-                        waitForGraph.removeEdge(from, to);
-                        throw new TransactionAbortedException();
-                    }else {
-                        waitForGraph.removeEdge(from, to);
-                    }
-
+                    waitForGraph.tryAddEdge(lockRequster, lockRes);
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
@@ -153,17 +146,7 @@ class LockTable {
             if (locked(pid)) {
                 if(holdLock == null && lockType.equals(LockType.ExclusiveLock)) {
 
-                    TransactionId toTid = getOwner(pid);
-
-                    LockItem from = new LockItem(tid.getId(), LockItemType.TRANSACTION);
-                    LockItem to = new LockItem(toTid.getId(), LockItemType.TRANSACTION);
-                    waitForGraph.addEdge(from, to);
-                    if(waitForGraph.haveCircle()) {
-                        waitForGraph.removeEdge(from, to);
-                        throw new TransactionAbortedException();
-                    }else {
-                        waitForGraph.removeEdge(from, to);
-                    }
+                    waitForGraph.tryAddEdge(lockRequster, lockRes);
 
                     try {
                         Thread.sleep(100);
@@ -175,9 +158,9 @@ class LockTable {
 
             }
             addToBucket(tid, pid, lockType);
-            LockItem from = new LockItem(pid.hashCode(), LockItemType.RESOURCE);
-            LockItem to = new LockItem(tid.getId(), LockItemType.TRANSACTION);
-            waitForGraph.addEdge(from, to);
+            if(waitForGraph.haveEdge(lockRequster, lockRes))
+                waitForGraph.removeEdge(lockRequster, lockRes);
+            waitForGraph.addEdge(lockRes, lockRequster);
             break;
         }
     }
@@ -186,9 +169,9 @@ class LockTable {
         LockType lockType = holdLock(tid, pid);
         if(lockType != null) {
             releaseLock(tid, pid, lockType);
-            LockItem from = new LockItem(pid.hashCode(), LockItemType.RESOURCE);
-            LockItem to = new LockItem(tid.getId(), LockItemType.TRANSACTION);
-            waitForGraph.removeEdge(from, to);
+            LockItem lockRes = new LockItem(pid.hashCode(), LockItemType.RESOURCE);
+            LockItem lockRequster = new LockItem(tid.getId(), LockItemType.TRANSACTION);
+            waitForGraph.removeEdge(lockRes, lockRequster);
         }
     }
 
@@ -198,6 +181,9 @@ class LockTable {
 
     public void releaseAllLocks(TransactionId tid) {
         HashSet<PageId> holds = getHolds(tid);
+        if(holds == null) {
+            return;
+        }
         HashSet<PageId> copys = new HashSet<>();
         copys.addAll(holds);
 

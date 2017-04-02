@@ -4,6 +4,7 @@ import simpledb.*;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * HeapFile is an implementation of a DbFile that stores a collection of tuples
@@ -18,6 +19,7 @@ import java.util.*;
 public class HeapFile implements DbFile {
     private File f;
     TupleDesc td;
+    private AtomicInteger pageCount = new AtomicInteger(0);
 
 
     /**
@@ -31,6 +33,7 @@ public class HeapFile implements DbFile {
 
         this.f = f;
         this.td = td;
+        resetNumPages();
     }
 
     /**
@@ -98,31 +101,23 @@ public class HeapFile implements DbFile {
      * Returns the number of pages in this HeapFile.
      */
     public int numPages() {
-        return (int)(f.length() / BufferPool.PAGE_SIZE);
+        return pageCount.get();
+    }
+
+    public void resetNumPages() {
+        pageCount.set((int)(f.length() / BufferPool.PAGE_SIZE));
+    }
+    public void incrNumPages() {
+        pageCount.set(pageCount.intValue()+1);
     }
 
     // see DbFile.java for javadocs
     public ArrayList<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
-        ArrayList<Page> returnPages = new ArrayList<>();
-        int pageNo = 0;
-        BufferPool bufferPool = Database.getBufferPool();
-        for(;pageNo<numPages();++pageNo) {
-            HeapPage page = (HeapPage) bufferPool.getPage(
-                    tid, new HeapPageId(getId(), pageNo), Permissions.READ_WRITE);
-            if(page.getNumEmptySlots() > 0) {
-                page.insertTuple(t);
-                page.markDirty(true, tid);
-                returnPages.add(page);
-                return returnPages;
-            }
-        }
-
-        HeapPage page = new HeapPage(new HeapPageId(getId(), pageNo), new byte[BufferPool.PAGE_SIZE]);
-        page.insertTuple(t);
-        page.markDirty(true, tid);
-        returnPages.add(page);
-        return returnPages;
+        ArrayList<Page> pages = new ArrayList<>();
+        Page page = Database.getBufferPool().insertTuple(tid, getId(), t);
+        pages.add(page);
+        return pages;
     }
 
     // see DbFile.java for javadocs
@@ -151,7 +146,7 @@ public class HeapFile implements DbFile {
             @Override
             public boolean hasNext() throws DbException, TransactionAbortedException {
                 if(!opened)
-                    throw new DbException("iterator not opened");
+                    return false;
                 if(iterator.hasNext()) return true;
                 for(int i=pgNo+1;i<numPages();++i) {
                     HeapPageId pid = new HeapPageId(getId(), i);

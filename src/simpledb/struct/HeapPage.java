@@ -248,7 +248,8 @@ public class HeapPage implements Page {
      *         is mismatch.
      * @param t The tuple to add.
      */
-    public void insertTuple(Tuple t) throws DbException {
+    public void
+    insertTuple(Tuple t) throws DbException {
         if(getNumEmptySlots() == 0)
             throw new DbException("no empty slot");
         if(!t.getTupleDesc().equals(td))
