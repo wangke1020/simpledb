@@ -39,11 +39,13 @@ public class Digraph<Item> {
     }
 
     public void addEdge(Item from, Item to) {
+        if(haveEdge(from, to))
+            return;
         if (!adj.containsKey(from)) {
-            adj.put(from, new HashSet<Item>());
+            adj.put(from, new HashSet<>());
         }
         if (!adj.containsKey(to))
-            adj.put(to, new HashSet<Item>());
+            adj.put(to, new HashSet<>());
 
         adj.get(from).add(to);
         ++e;
@@ -95,10 +97,6 @@ public class Digraph<Item> {
     }
 
     private boolean hasCircle(Item item, Set<Item> visited, Set<Item> stack) {
-        for (Item i : stack) {
-            System.out.printf(i + " ");
-        }
-        System.out.println();
         if(!visited.contains(item)) {
             visited.add(item);
             stack.add(item);
@@ -113,6 +111,20 @@ public class Digraph<Item> {
         }
         stack.remove(item);
         return false;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for(Item key : adj.keySet()) {
+            sb.append(key).append("  ===>  ");
+            Set<Item> set = adj.get(key);
+            for(Item to : set) {
+                sb.append(to.toString()).append(",");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
     public static void main(String[] args) {

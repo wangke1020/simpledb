@@ -158,6 +158,8 @@ public class TransactionTest extends SimpleDbTestBase {
                 throw new RuntimeException(e);
             }
             completed = true;
+
+            System.out.println(Thread.currentThread() + ": exit");
         }
     }
     

@@ -10,10 +10,12 @@ enum LockItemType {
 class LockItem {
     long id;
     LockItemType type;
+    String desc;
 
-    LockItem(long id, LockItemType type) {
+    LockItem(long id, LockItemType type, String desc) {
         this.id = id;
         this.type = type;
+        this.desc = desc;
     }
 
     long getId() {
@@ -22,6 +24,10 @@ class LockItem {
 
     LockItemType getType() {
         return type;
+    }
+
+    String getDesc() {
+        return desc;
     }
 
     @Override
@@ -36,6 +42,11 @@ class LockItem {
         LockItem item = (LockItem)o;
         return item.id == this.id &&
                 item.type.equals(this.type);
+    }
+
+    @Override
+    public String toString() {
+        return desc;
     }
 }
 
@@ -54,7 +65,7 @@ public class WaitForGraph {
         return digraph.haveEdge(from, to);
     }
 
-    public void tryAddEdge(LockItem from, LockItem to) throws TransactionAbortedException {
+    public synchronized void tryAddEdge(LockItem from, LockItem to) throws TransactionAbortedException {
         if(haveEdge(from, to))
             return;
 
@@ -65,11 +76,16 @@ public class WaitForGraph {
         }
     }
 
-    public void removeEdge(LockItem from, LockItem to) {
+    public synchronized void removeEdge(LockItem from, LockItem to) {
         digraph.removeEdge(from, to);
     }
 
     public boolean haveCircle() {
         return digraph.hasCircle();
+    }
+
+    @Override
+    public String toString() {
+        return digraph.toString();
     }
 }

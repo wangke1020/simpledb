@@ -1,8 +1,12 @@
 package simpledb;
 
+import org.apache.mina.util.ConcurrentHashSet;
 import simpledb.struct.PageId;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -53,18 +57,18 @@ class LockTable {
 
     }
 
-    private ConcurrentHashMap<PageId, HashSet<LockUnit>> bucket = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<TransactionId, HashSet<PageId>> holds = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<PageId, ConcurrentHashSet<LockUnit>> bucket = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<TransactionId, ConcurrentHashSet<PageId>> holds = new ConcurrentHashMap<>();
     private WaitForGraph waitForGraph = new WaitForGraph();
 
     private void addToBucket(TransactionId tid, PageId pid, LockType type) {
         if(!bucket.containsKey(pid))
-            bucket.put(pid, new HashSet<>());
+            bucket.put(pid, new ConcurrentHashSet<>());
         if(!holds.containsKey(tid)) {
-            holds.put(tid, new HashSet<>());
+            holds.put(tid, new ConcurrentHashSet<>());
         }
 
-        HashSet<LockUnit> set = bucket.get(pid);
+        ConcurrentHashSet<LockUnit> set = bucket.get(pid);
         LockUnit SLockUnit = new LockUnit(tid, LockType.ShareLock);
 
         // upgrade shared lock to X lock
@@ -75,7 +79,7 @@ class LockTable {
     }
 
     private boolean isExclusiveLocked(PageId pid) {
-        HashSet<LockUnit> set = bucket.get(pid);
+        ConcurrentHashSet<LockUnit> set = bucket.get(pid);
         if(set == null) return false;
 
         for(LockUnit entity : set) {
@@ -85,13 +89,18 @@ class LockTable {
         return false;
     }
 
+    private Set<LockUnit> locksOnPage(PageId pid) {
+        ConcurrentHashSet<LockUnit> set = bucket.get(pid);
+        if(set == null) return new HashSet<>();
+        return set;
+    }
+
     private boolean locked(PageId pid) {
-        HashSet<LockUnit> set = bucket.get(pid);
-        return set != null && (!set.isEmpty());
+        return locksOnPage(pid).size() > 0;
     }
 
     private LockType holdLock(TransactionId tid, PageId pid) {
-        HashSet<LockUnit> set = bucket.get(pid);
+        ConcurrentHashSet<LockUnit> set = bucket.get(pid);
         if(set == null || set.isEmpty()) return null;
         if(set.contains(new LockUnit(tid,LockType.ExclusiveLock)))
             return LockType.ExclusiveLock;
@@ -100,41 +109,40 @@ class LockTable {
         return null;
     }
 
-    private TransactionId getOwner(PageId pid) {
-        HashSet<LockUnit> set = bucket.get(pid);
-        return set.iterator().next().getTid();
-    }
-
     private void releaseLock(TransactionId tid, PageId pid, LockType type) {
-        HashSet<LockUnit> set = bucket.get(pid);
+        ConcurrentHashSet<LockUnit> set = bucket.get(pid);
         set.remove(new LockUnit(tid, type));
 
-        HashSet<PageId> pageIds = holds.get(tid);
+        ConcurrentHashSet<PageId> pageIds = holds.get(tid);
         pageIds.remove(pid);
         if(pageIds.size() == 0)
             holds.remove(tid);
     }
 
-    public HashSet<PageId> getHolds(TransactionId tid) {
+    public ConcurrentHashSet<PageId> getHolds(TransactionId tid) {
         return holds.get(tid);
     }
 
     public void acquireLock(TransactionId tid, PageId pid, Permissions perms) throws TransactionAbortedException {
 
-        LockItem lockRes = new LockItem(pid.hashCode(), LockItemType.RESOURCE);
-        LockItem lockRequster = new LockItem(tid.getId(), LockItemType.TRANSACTION);
+         LockItem lockRes = new LockItem(pid.hashCode(), LockItemType.RESOURCE, pid.toString());
+        LockItem lockRequester = new LockItem(tid.getId(), LockItemType.TRANSACTION, tid.toString());
 
         while(true) {
             boolean isExclusiveLocked = isExclusiveLocked(pid);
             LockType holdLock = holdLock(tid, pid);
             if (isExclusiveLocked) {
-                if (holdLock != null && holdLock.equals(LockType.ExclusiveLock))
-                    return;
-                else {
 
-                    waitForGraph.tryAddEdge(lockRequster, lockRes);
+                if (holdLock != null && holdLock.equals(LockType.ExclusiveLock)) {
+                    // tid already hold X lock.
+                    return;
+                }
+                else {
+                    // Check deadlock and wait
+                    waitForGraph.tryAddEdge(lockRequester, lockRes);
+
                     try {
-                        Thread.sleep(100);
+                        Thread.sleep(10);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -142,35 +150,66 @@ class LockTable {
                 }
             }
 
+            // No X lock on page
             LockType lockType = LockType.fromPerms(perms);
             if (locked(pid)) {
-                if(holdLock == null && lockType.equals(LockType.ExclusiveLock)) {
+                // S lock existed.
+                Set<LockUnit> locks = locksOnPage(pid);
+                boolean alreadyholdSLock = locks.contains(new LockUnit(tid, LockType.ShareLock));
 
-                    waitForGraph.tryAddEdge(lockRequster, lockRes);
+                if(! alreadyholdSLock) {
+                    // No S lock hold
+                    if(lockType.equals(LockType.ShareLock)) {
+                        // Request for S lock
+                        addToBucket(tid, pid, lockType);
+                        waitForGraph.addEdge(lockRes, lockRequester);
+                        return;
+                    }else {
+                        // request for X lock but S lock holds by other transaction.
+                        waitForGraph.tryAddEdge(lockRequester, lockRes);
+                        try {
+                            Thread.sleep(10);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        continue;
+                    }
+                }
 
+                if(lockType.equals(LockType.ShareLock)) {
+                    // Already hold S lock and request for S lock
+                    return;
+                }
+                if(locks.size() == 1) {
+                    // only the transaction hold S lock and can upgrade X lock.
+                    addToBucket(tid, pid, lockType);
+                    waitForGraph.addEdge(lockRes, lockRequester);
+                    return;
+                }
+                else {
+                    // other transaction alse hold S lock, can not upgrade to X lock, wait
+                    waitForGraph.tryAddEdge(lockRequester, lockRes);
                     try {
-                        Thread.sleep(100);
+                        Thread.sleep(10);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
                     continue;
                 }
-
             }
+
             addToBucket(tid, pid, lockType);
-            if(waitForGraph.haveEdge(lockRequster, lockRes))
-                waitForGraph.removeEdge(lockRequster, lockRes);
-            waitForGraph.addEdge(lockRes, lockRequster);
-            break;
+            waitForGraph.addEdge(lockRes, lockRequester);
+            return;
         }
     }
 
-    public void releaseLock(TransactionId tid, PageId pid) {
+    public  void releaseLock(TransactionId tid, PageId pid) {
         LockType lockType = holdLock(tid, pid);
         if(lockType != null) {
             releaseLock(tid, pid, lockType);
-            LockItem lockRes = new LockItem(pid.hashCode(), LockItemType.RESOURCE);
-            LockItem lockRequster = new LockItem(tid.getId(), LockItemType.TRANSACTION);
+            LockItem lockRes = new LockItem(pid.hashCode(), LockItemType.RESOURCE, pid.toString());
+            LockItem lockRequster = new LockItem(tid.getId(), LockItemType.TRANSACTION, tid.toString());
             waitForGraph.removeEdge(lockRes, lockRequster);
         }
     }
@@ -180,7 +219,7 @@ class LockTable {
     }
 
     public void releaseAllLocks(TransactionId tid) {
-        HashSet<PageId> holds = getHolds(tid);
+        ConcurrentHashSet<PageId> holds = getHolds(tid);
         if(holds == null) {
             return;
         }

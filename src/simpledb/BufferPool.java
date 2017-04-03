@@ -1,5 +1,6 @@
 package simpledb;
 
+import org.apache.mina.util.ConcurrentHashSet;
 import simpledb.struct.*;
 
 import java.io.IOException;
@@ -144,7 +145,7 @@ public class BufferPool {
             flushPages(tid);
         } else {
 
-            HashSet<PageId> pageIds = lockTable.getHolds(tid);
+            ConcurrentHashSet<PageId> pageIds = lockTable.getHolds(tid);
             for (PageId pid : pageIds) {
                 pages.remove(pid);
                 Page page = Database.getCatalog().getDbFile(pid.getTableId()).readPage(pid);
@@ -258,14 +259,18 @@ public class BufferPool {
     public synchronized  void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for proj1
-        HashSet<PageId> pageIds = lockTable.getHolds(tid);
+        ConcurrentHashSet<PageId> pageIds = lockTable.getHolds(tid);
         if(pageIds == null) {
             // no read and write operation
             return;
         }
         for(PageId pid : pageIds) {
-            flushPage(pid);
             Page page = pages.get(pid);
+
+            if(page == null || page.isDirty() == null) {
+                continue;
+            }
+            flushPage(pid);
             if(page != null)
                 page.markDirty(false, tid);
         }
